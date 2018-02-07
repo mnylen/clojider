@@ -58,16 +58,18 @@
     [0 nil]
     (sort-by first durations))))
 
+(defn- in-range? [{:keys [start-idx end-idx]} n]
+  (<= start-idx n end-idx))
+
+(defn- nth-value [ranges n]
+  (->> ranges
+       (filter #(in-range? % n))
+       first
+       :value))
+
 (defn median [durations]
   (let [cnt (request-count durations)
-        value-index-ranges (generate-value-index-ranges durations)
-        in-range? (fn [{:keys [start-idx end-idx]} n]
-                    (<= start-idx n end-idx))
-        nth-value (fn [n]
-                    (->> value-index-ranges
-                         (filter #(in-range? % n))
-                         first
-                         :value))]
+        ranges (generate-value-index-ranges durations)]
     (cond
       ;; Can't find median if there are no values
       (= 0 cnt) nil
@@ -76,9 +78,25 @@
       ;; average of the two values closest to the halfway
       ;; in the sorted data set.
       (= 0 (mod cnt 2)) (let [half-idx (/ cnt 2)
-                              sum (+ (nth-value half-idx) (nth-value (dec half-idx)))]
+                              sum (+ (nth-value ranges half-idx) (nth-value ranges (dec half-idx)))]
                           (/ sum 2))
 
       ;; Otherwise, median is the value closest to the center
       :else (let [half-idx (Math/floor (/ cnt 2))]
               (nth-value half-idx)))))
+
+(defn kth-percentile [durations k]
+  (cond
+    (= k 100) (apply max (keys durations))
+    (> k 100) (throw (IllegalArgumentException. "Can't calculate Kth percentile where K > 100%"))
+    :else (let [cnt (request-count durations)
+                ranges (generate-value-index-ranges durations)
+                idx (* cnt (/ k 100))]
+            ;; When the Kth percentile value index is a whole number i.e. idx % 1 == 0,
+            ;; the Kth percentile is the average of the value at the index and the value
+            ;; right next to it. Otherwise, we ceil up the number and that's the value
+            ;; index.
+            (if (= 0 (mod idx 1))
+              (let [sum (+ (nth-value ranges (dec idx)) (nth-value ranges idx))]
+                (/ sum 2))
+              (nth-value ranges (Math/floor idx))))))
