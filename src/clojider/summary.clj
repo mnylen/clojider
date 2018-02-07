@@ -30,8 +30,9 @@
       (float (/ total-millis (request-count durations))))))
 
 (defn- generate-value-index-ranges [durations]
-  ;; For median calculations we need to know the duration of the Nth request. As we only
-  ;; have frequencies of each duration, we can't just call (nth durations n) to get this.
+  ;; For median and Kth-percentile calculations we need to know the duration of the Nth
+  ;; longest request. As we only have frequencies of each duration, we can't just call
+  ;; (nth (sort durations) n) to get this.
   ;;
   ;; Instead, we map the durations as index ranges where they would be if we had a
   ;; sorted array of all durations. This is quite easy to do in a reduce loop:
@@ -94,8 +95,8 @@
                 idx (* cnt (/ k 100))]
             ;; When the Kth percentile value index is a whole number i.e. idx % 1 == 0,
             ;; the Kth percentile is the average of the value at the index and the value
-            ;; right next to it. Otherwise, we ceil up the number and that's the value
-            ;; index.
+            ;; left to it. For non-whole indexes, we floor the index and the value in
+            ;; that index is the Kth percentile.
             (if (= 0 (mod idx 1))
               (let [sum (+ (nth-value ranges (dec idx)) (nth-value ranges idx))]
                 (/ sum 2))
